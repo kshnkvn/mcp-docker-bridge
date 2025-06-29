@@ -7,11 +7,11 @@ from docker.errors import DockerException
 from loguru import logger
 
 from mcp_docker_bridge.shared.constants import (
-    ContainerAttrKey,
-    DockerAPIParam,
-    PortAttrKey,
-    PortType,
-    StateAttrKey,
+    DockerContainerAttrKey,
+    DockerContainerListAPIParam,
+    DockerContainerPortAttrKey,
+    DockerContainerStateAttrKey,
+    DockerPortType,
 )
 from mcp_docker_bridge.shared.schemas import (
     ContainerInfo,
@@ -85,54 +85,68 @@ class DockerClientManager:
         Returns:
             List of ContainerInfo objects
         """
-        # Build kwargs using StrEnum values
-        kwargs = {}
-
-        if all:
-            kwargs[DockerAPIParam.ALL] = all
-        if since is not None:
-            kwargs[DockerAPIParam.SINCE] = since
-        if before is not None:
-            kwargs[DockerAPIParam.BEFORE] = before
-        if limit is not None:
-            kwargs[DockerAPIParam.LIMIT] = limit
-        if filters is not None:
-            kwargs[DockerAPIParam.FILTERS] = filters
-        if sparse:
-            kwargs[DockerAPIParam.SPARSE] = sparse
-        if ignore_removed:
-            kwargs[DockerAPIParam.IGNORE_REMOVED] = ignore_removed
-
+        kwargs = self._build_list_kwargs(
+            all, since, before, limit, filters, sparse, ignore_removed
+        )
         containers = self.client.containers.list(**kwargs)
 
-        # Convert Container objects to dictionaries, then to ContainerInfo
         container_infos = []
         for container in containers:
-            # Extract container name and convert to array format
-            container_names = []
-            if hasattr(container, 'name') and container.name:
-                container_names = [container.name]
-
-            data = {
-                'id': container.id,
-                ContainerAttrKey.NAMES: container_names,
-                ContainerAttrKey.IMAGE: container.attrs.get(
-                    ContainerAttrKey.IMAGE, ''
-                ),
-                ContainerAttrKey.CREATED: container.attrs.get(
-                    ContainerAttrKey.CREATED, 0
-                ),
-                ContainerAttrKey.PORTS: container.attrs.get(
-                    ContainerAttrKey.PORTS, []
-                ),
-                ContainerAttrKey.STATE: container.attrs.get(
-                    ContainerAttrKey.STATE, {}
-                ),
-            }
-
-            container_infos.append(self._convert_container_data(data))
+            container_data = self._extract_container_data(container)
+            container_infos.append(self._convert_container_data(container_data))
 
         return container_infos
+
+    def _build_list_kwargs(
+        self,
+        all: bool,
+        since: str | None,
+        before: str | None,
+        limit: int | None,
+        filters: dict[str, Any] | None,
+        sparse: bool,
+        ignore_removed: bool,
+    ) -> dict[str, Any]:
+        """Build kwargs dictionary for Docker API using StrEnum values.
+        """
+        params = {
+            DockerContainerListAPIParam.ALL: all,
+            DockerContainerListAPIParam.SINCE: since,
+            DockerContainerListAPIParam.BEFORE: before,
+            DockerContainerListAPIParam.LIMIT: limit,
+            DockerContainerListAPIParam.FILTERS: filters,
+            DockerContainerListAPIParam.SPARSE: sparse,
+            DockerContainerListAPIParam.IGNORE_REMOVED: ignore_removed,
+        }
+
+        return {
+            key: value for key, value in params.items()
+            if value is not None and (not isinstance(value, bool) or value)
+        }
+
+    def _extract_container_data(self, container) -> dict[str, Any]:
+        """Extract container data from Docker container object.
+        """
+        container_names = []
+        if hasattr(container, 'name') and container.name:
+            container_names = [container.name]
+
+        return {
+            'id': container.id,
+            DockerContainerAttrKey.NAMES: container_names,
+            DockerContainerAttrKey.IMAGE: container.attrs.get(
+                DockerContainerAttrKey.IMAGE, ''
+            ),
+            DockerContainerAttrKey.CREATED: container.attrs.get(
+                DockerContainerAttrKey.CREATED, 0
+            ),
+            DockerContainerAttrKey.PORTS: container.attrs.get(
+                DockerContainerAttrKey.PORTS, []
+            ),
+            DockerContainerAttrKey.STATE: container.attrs.get(
+                DockerContainerAttrKey.STATE, {}
+            ),
+        }
 
     def _convert_container_data(
         self,
@@ -140,113 +154,104 @@ class DockerClientManager:
     ) -> ContainerInfo:
         """Convert raw Docker API container data to ContainerInfo model.
         """
-        # Parse ports (simplified)
-        ports = []
-        for port_data in container_data.get(ContainerAttrKey.PORTS, []):
-            port = ContainerPort(
-                private_port=port_data.get(PortAttrKey.PRIVATE_PORT, 0),
-                public_port=port_data.get(PortAttrKey.PUBLIC_PORT),
-                type=PortType(port_data.get(PortAttrKey.TYPE, PortType.TCP)),
-            )
-            ports.append(port)
+        ports_data = container_data.get(DockerContainerAttrKey.PORTS, [])
+        ports = self._parse_ports(ports_data)
+        state_data = container_data.get(DockerContainerAttrKey.STATE, {})
+        state_string = self._extract_state_string(state_data)
 
-        # Parse state - extract state string from State dictionary
-        state_data = container_data.get(ContainerAttrKey.STATE, {})
-        if isinstance(state_data, dict):
-            state_string = state_data.get(StateAttrKey.STATUS, '')
-        else:
-            state_string = str(state_data) if state_data else ''
-
-        # Extract started_at from State.StartedAt
-        started_at = None
-        if isinstance(state_data, dict):
-            started_at_value = state_data.get(StateAttrKey.STARTED_AT)
-            if started_at_value:
-                # Handle different datetime formats
-                if isinstance(started_at_value, str):
-                    try:
-                        if started_at_value.endswith('Z'):
-                            started_at = datetime.fromisoformat(
-                                started_at_value.rstrip('Z') + '+00:00'
-                            )
-                        else:
-                            started_at = datetime.fromisoformat(
-                                started_at_value
-                            )
-                            if started_at.tzinfo is None:
-                                started_at = started_at.replace(tzinfo=UTC)
-                    except ValueError:
-                        # If parsing fails, leave as None
-                        pass
-                elif (
-                    isinstance(started_at_value, int | float)
-                    and started_at_value > 0
-                ):
-                    started_at = datetime.fromtimestamp(started_at_value, UTC)
-
-        # Extract finished_at from State.FinishedAt
-        finished_at = None
-        if isinstance(state_data, dict):
-            finished_at_value = state_data.get(StateAttrKey.FINISHED_AT)
-            if finished_at_value:
-                # Handle different datetime formats
-                if isinstance(finished_at_value, str):
-                    try:
-                        if finished_at_value.endswith('Z'):
-                            finished_at = datetime.fromisoformat(
-                                finished_at_value.rstrip('Z') + '+00:00'
-                            )
-                        else:
-                            finished_at = datetime.fromisoformat(
-                                finished_at_value
-                            )
-                            if finished_at.tzinfo is None:
-                                finished_at = finished_at.replace(tzinfo=UTC)
-                    except ValueError:
-                        # If parsing fails, leave as None
-                        pass
-                elif (
-                    isinstance(finished_at_value, int | float)
-                    and finished_at_value > 0
-                ):
-                    finished_at = datetime.fromtimestamp(
-                        finished_at_value, UTC
-                    )
-
-        # Convert timestamp to datetime
-        created_value = container_data.get(ContainerAttrKey.CREATED, 0)
-
-        # Handle both string (ISO format) and integer (Unix timestamp) formats
-        if isinstance(created_value, str):
-            try:
-                # Parse ISO 8601 format, ensure timezone-aware
-                if created_value.endswith('Z'):
-                    # Replace Z with explicit UTC offset
-                    created_at = datetime.fromisoformat(
-                        created_value.rstrip('Z') + '+00:00'
-                    )
-                else:
-                    created_at = datetime.fromisoformat(created_value)
-                    # If naive datetime, assume UTC
-                    if created_at.tzinfo is None:
-                        created_at = created_at.replace(tzinfo=UTC)
-            except ValueError:
-                # Fallback if parsing fails - use UTC
-                created_at = datetime.now(UTC)
-        elif isinstance(created_value, int | float) and created_value > 0:
-            # Create timezone-aware datetime from timestamp (UTC)
-            created_at = datetime.fromtimestamp(created_value, UTC)
-        else:
-            # Default fallback - use UTC
-            created_at = datetime.now(UTC)
+        created_at = self._parse_datetime_value(
+            container_data.get(DockerContainerAttrKey.CREATED, 0)
+        )
+        started_at = self._parse_state_datetime(
+            state_data, DockerContainerStateAttrKey.STARTED_AT
+        )
+        finished_at = self._parse_state_datetime(
+            state_data, DockerContainerStateAttrKey.FINISHED_AT
+        )
 
         return ContainerInfo(
             id=container_data['id'],
-            names=container_data.get(ContainerAttrKey.NAMES, []),
-            image=container_data.get(ContainerAttrKey.IMAGE, ''),
+            names=container_data.get(DockerContainerAttrKey.NAMES, []),
+            image=container_data.get(DockerContainerAttrKey.IMAGE, ''),
             state=state_string,
             created_at=created_at,
             started_at=started_at,
             finished_at=finished_at,
             ports=ports,
         )
+
+    def _parse_ports(
+        self, ports_data: list[dict[str, Any]]
+    ) -> list[ContainerPort]:
+        """Parse port data into ContainerPort objects.
+        """
+        ports = []
+        for port_data in ports_data:
+            private_port_key = DockerContainerPortAttrKey.PRIVATE_PORT
+            public_port_key = DockerContainerPortAttrKey.PUBLIC_PORT
+            type_key = DockerContainerPortAttrKey.TYPE
+
+            port = ContainerPort(
+                private_port=port_data.get(private_port_key, 0),
+                public_port=port_data.get(public_port_key),
+                type=DockerPortType(
+                    port_data.get(type_key, DockerPortType.TCP)
+                ),
+            )
+            ports.append(port)
+        return ports
+
+    def _extract_state_string(self, state_data: dict[str, Any] | Any) -> str:
+        """Extract state string from State dictionary.
+        """
+        if isinstance(state_data, dict):
+            return state_data.get(DockerContainerStateAttrKey.STATUS, '')
+        return str(state_data) if state_data else ''
+
+    def _parse_state_datetime(
+        self,
+        state_data: dict[str, Any],
+        key: DockerContainerStateAttrKey
+    ) -> datetime | None:
+        """Parse datetime from state data for given key.
+        """
+        if not isinstance(state_data, dict):
+            return None
+
+        datetime_value = state_data.get(key)
+        if datetime_value:
+            return self._parse_datetime_value(datetime_value)
+        return None
+
+    def _parse_datetime_value(self, value: Any) -> datetime:
+        """Parse datetime value from various formats (string, timestamp, etc.).
+
+        Returns timezone-aware datetime or current UTC time as fallback.
+        """
+        if isinstance(value, str):
+            return self._parse_iso_datetime(value)
+
+        if isinstance(value, int | float) and value > 0:
+            return datetime.fromtimestamp(value, UTC)
+
+        return datetime.now(UTC)
+
+    def _parse_iso_datetime(self, iso_string: str) -> datetime:
+        """Parse ISO 8601 datetime string to timezone-aware datetime.
+        """
+        try:
+            if iso_string.endswith('Z'):
+                # Replace Z with explicit UTC offset
+                return datetime.fromisoformat(
+                    iso_string.rstrip('Z') + '+00:00'
+                )
+
+            parsed_dt = datetime.fromisoformat(iso_string)
+            # If naive datetime, assume UTC
+            if parsed_dt.tzinfo is None:
+                return parsed_dt.replace(tzinfo=UTC)
+            return parsed_dt
+
+        except ValueError:
+            # Fallback if parsing fails
+            return datetime.now(UTC)

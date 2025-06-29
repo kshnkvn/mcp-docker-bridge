@@ -4,9 +4,9 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from mcp_docker_bridge.shared.constants import (
-    ContainerState,
-    FilterKey,
-    PortType,
+    DockerContainerFilterKey,
+    DockerContainerState,
+    DockerPortType,
 )
 
 
@@ -15,14 +15,7 @@ class ContainerPort(BaseModel):
     """
     private_port: int = Field(..., description='Private port inside container')
     public_port: int | None = Field(None, description='Public port on host')
-    type: PortType = Field(..., description='Port type (tcp/udp)')
-
-
-class ContainerLabel(BaseModel):
-    """Container label filter.
-    """
-    key: str = Field(..., description='Label key')
-    value: str | None = Field(None, description='Label value')
+    type: DockerPortType = Field(..., description='Port type (tcp/udp)')
 
 
 class ContainerInfo(BaseModel):
@@ -54,7 +47,7 @@ class ListContainersFilters(BaseModel):
     """Filters for listing containers.
     """
     exited: int | None = Field(None, description='Filter by exit code')
-    status: ContainerState | None = Field(
+    status: DockerContainerState | None = Field(
         None,
         description='Filter by container status',
     )
@@ -77,30 +70,30 @@ class ListContainersFilters(BaseModel):
         filters = {}
 
         if self.exited is not None:
-            filters[FilterKey.EXITED] = self.exited
+            filters[DockerContainerFilterKey.EXITED] = self.exited
 
         if self.status is not None:
-            filters[FilterKey.STATUS] = self.status.value
+            filters[DockerContainerFilterKey.STATUS] = self.status.value
 
         if self.label is not None:
-            filters[FilterKey.LABEL] = (
+            filters[DockerContainerFilterKey.LABEL] = (
                 self.label if isinstance(self.label, list) else [self.label]
             )
 
         if self.id is not None:
-            filters[FilterKey.ID] = self.id
+            filters[DockerContainerFilterKey.ID] = self.id
 
         if self.name is not None:
-            filters[FilterKey.NAME] = self.name
+            filters[DockerContainerFilterKey.NAME] = self.name
 
         if self.ancestor is not None:
-            filters[FilterKey.ANCESTOR] = self.ancestor
+            filters[DockerContainerFilterKey.ANCESTOR] = self.ancestor
 
         if self.before is not None:
-            filters[FilterKey.BEFORE] = self.before
+            filters[DockerContainerFilterKey.BEFORE] = self.before
 
         if self.since is not None:
-            filters[FilterKey.SINCE] = self.since
+            filters[DockerContainerFilterKey.SINCE] = self.since
 
         return filters
 
