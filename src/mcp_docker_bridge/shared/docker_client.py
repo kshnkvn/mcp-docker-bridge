@@ -8,7 +8,6 @@ from loguru import logger
 
 from mcp_docker_bridge.shared.constants import (
     DockerContainerAttrKey,
-    DockerContainerListAPIParam,
     DockerContainerPortAttrKey,
     DockerContainerStateAttrKey,
     DockerPortType,
@@ -16,6 +15,7 @@ from mcp_docker_bridge.shared.constants import (
 from mcp_docker_bridge.shared.schemas import (
     ContainerInfo,
     ContainerPort,
+    ListContainersParams,
 )
 
 
@@ -63,31 +63,20 @@ class DockerClientManager:
 
     def list_containers(
         self,
-        all: bool = False,
-        since: str | None = None,
-        before: str | None = None,
-        limit: int | None = None,
-        filters: dict[str, Any] | None = None,
-        sparse: bool = False,
-        ignore_removed: bool = False,
+        params: ListContainersParams | None = None,
     ) -> list['ContainerInfo']:
         """List containers using Docker API and return ContainerInfo objects.
 
         Args:
-            all: Show all containers (default shows just running)
-            since: Show only containers created since Id or Name
-            before: Show only containers created before Id or Name
-            limit: Show limit last created containers
-            filters: Filters to apply
-            sparse: Do not inspect containers for full details
-            ignore_removed: Ignore failures due to missing containers
+            params: Container listing parameters. If None, uses defaults.
 
         Returns:
             List of ContainerInfo objects
         """
-        kwargs = self._build_list_kwargs(
-            all, since, before, limit, filters, sparse, ignore_removed
-        )
+        if params is None:
+            params = ListContainersParams()
+
+        kwargs = params.model_dump_docker_api()
         containers = self.client.containers.list(**kwargs)
 
         container_infos = []
@@ -96,33 +85,6 @@ class DockerClientManager:
             container_infos.append(self._convert_container_data(container_data))
 
         return container_infos
-
-    def _build_list_kwargs(
-        self,
-        all: bool,
-        since: str | None,
-        before: str | None,
-        limit: int | None,
-        filters: dict[str, Any] | None,
-        sparse: bool,
-        ignore_removed: bool,
-    ) -> dict[str, Any]:
-        """Build kwargs dictionary for Docker API using StrEnum values.
-        """
-        params = {
-            DockerContainerListAPIParam.ALL: all,
-            DockerContainerListAPIParam.SINCE: since,
-            DockerContainerListAPIParam.BEFORE: before,
-            DockerContainerListAPIParam.LIMIT: limit,
-            DockerContainerListAPIParam.FILTERS: filters,
-            DockerContainerListAPIParam.SPARSE: sparse,
-            DockerContainerListAPIParam.IGNORE_REMOVED: ignore_removed,
-        }
-
-        return {
-            key: value for key, value in params.items()
-            if value is not None and (not isinstance(value, bool) or value)
-        }
 
     def _extract_container_data(self, container) -> dict[str, Any]:
         """Extract container data from Docker container object.
@@ -215,9 +177,6 @@ class DockerClientManager:
     ) -> datetime | None:
         """Parse datetime from state data for given key.
         """
-        if not isinstance(state_data, dict):
-            return None
-
         datetime_value = state_data.get(key)
         if datetime_value:
             return self._parse_datetime_value(datetime_value)

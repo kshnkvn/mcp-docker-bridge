@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any
+from typing import Annotated, Any
 
 from pydantic import BaseModel, Field
 
@@ -14,7 +14,10 @@ class ContainerPort(BaseModel):
     """Container port mapping information.
     """
     private_port: int = Field(..., description='Private port inside container')
-    public_port: int | None = Field(None, description='Public port on host')
+    public_port: Annotated[
+        int | None,
+        Field(description='Public port on host')
+    ] = None
     type: DockerPortType = Field(..., description='Port type (tcp/udp)')
 
 
@@ -31,69 +34,84 @@ class ContainerInfo(BaseModel):
         ..., description='Container state (running, exited, etc.)'
     )
     created_at: datetime = Field(..., description='Container creation time')
-    started_at: datetime | None = Field(
-        None, description='Container last start time (null if never started)'
-    )
-    finished_at: datetime | None = Field(
-        None, description='Container last stop time (null if still running)'
-    )
-    ports: list[ContainerPort] = Field(
-        default_factory=list,
-        description='Exposed port mappings',
-    )
+    started_at: Annotated[
+        datetime | None,
+        Field(description='Container last start time (null if never started)')
+    ] = None
+    finished_at: Annotated[
+        datetime | None,
+        Field(description='Container last stop time (null if still running)')
+    ] = None
+    ports: Annotated[
+        list[ContainerPort],
+        Field(default_factory=list, description='Exposed port mappings')
+    ] = []
 
 
 class ListContainersFilters(BaseModel):
     """Filters for listing containers.
+
+    Uses type-safe enums and automatic conversion to Docker API format.
     """
-    exited: int | None = Field(None, description='Filter by exit code')
-    status: DockerContainerState | None = Field(
-        None,
-        description='Filter by container status',
-    )
-    label: str | list[str] | None = Field(None, description='Filter by label')
-    id: str | None = Field(None, description='Filter by container ID')
-    name: str | None = Field(None, description='Filter by container name')
-    ancestor: str | None = Field(None, description='Filter by ancestor image')
-    before: str | None = Field(
-        None,
-        description='Only containers created before this container',
-    )
-    since: str | None = Field(
-        None,
-        description='Only containers created after this container',
-    )
+    exited: Annotated[
+        int | None,
+        Field(description='Filter by exit code')
+    ] = None
+    status: Annotated[
+        DockerContainerState | None,
+        Field(description='Filter by container status')
+    ] = None
+    label: Annotated[
+        str | list[str] | None,
+        Field(description='Filter by label(s) - string or list of strings')
+    ] = None
+    id: Annotated[
+        str | None,
+        Field(description='Filter by container ID')
+    ] = None
+    name: Annotated[
+        str | None,
+        Field(description='Filter by container name')
+    ] = None
+    ancestor: Annotated[
+        str | None,
+        Field(description='Filter by ancestor image')
+    ] = None
+    before: Annotated[
+        str | None,
+        Field(description='Only containers created before this container')
+    ] = None
+    since: Annotated[
+        str | None,
+        Field(description='Only containers created after this container')
+    ] = None
 
     def to_docker_filters(self) -> dict[str, Any]:
-        """Convert to Docker API filters format.
+        """Convert to Docker API filters format with automatic type conversion.
+
+        Automatically handles:
+        - Enum to string conversion (status.value)
+        - String to list conversion for labels
+        - None value exclusion
         """
+        data = self.model_dump(exclude_none=True)
         filters = {}
 
-        if self.exited is not None:
-            filters[DockerContainerFilterKey.EXITED] = self.exited
+        for field_name, field_value in data.items():
+            try:
+                docker_key = DockerContainerFilterKey(field_name)
+            except ValueError:
+                continue
 
-        if self.status is not None:
-            filters[DockerContainerFilterKey.STATUS] = self.status.value
-
-        if self.label is not None:
-            filters[DockerContainerFilterKey.LABEL] = (
-                self.label if isinstance(self.label, list) else [self.label]
-            )
-
-        if self.id is not None:
-            filters[DockerContainerFilterKey.ID] = self.id
-
-        if self.name is not None:
-            filters[DockerContainerFilterKey.NAME] = self.name
-
-        if self.ancestor is not None:
-            filters[DockerContainerFilterKey.ANCESTOR] = self.ancestor
-
-        if self.before is not None:
-            filters[DockerContainerFilterKey.BEFORE] = self.before
-
-        if self.since is not None:
-            filters[DockerContainerFilterKey.SINCE] = self.since
+            if field_name == 'status' and hasattr(field_value, 'value'):
+                filters[docker_key] = field_value.value
+            elif field_name == 'label':
+                filters[docker_key] = (
+                    field_value if isinstance(field_value, list)
+                    else [field_value]
+                )
+            else:
+                filters[docker_key] = field_value
 
         return filters
 
@@ -101,34 +119,53 @@ class ListContainersFilters(BaseModel):
 class ListContainersParams(BaseModel):
     """Parameters for listing containers.
     """
-    all: bool = Field(
-        False,
-        description='Show all containers (default shows just running)',
-    )
-    since: str | None = Field(
-        None,
-        description='Show only containers created since Id or Name',
-    )
-    before: str | None = Field(
-        None,
-        description='Show only containers created before Id or Name',
-    )
-    limit: int | None = Field(
-        None,
-        description='Show limit last created containers',
-    )
-    filters: ListContainersFilters | None = Field(
-        None,
-        description='Filters to apply',
-    )
-    sparse: bool = Field(
-        False,
-        description='Do not inspect containers for full details',
-    )
-    ignore_removed: bool = Field(
-        False,
-        description='Ignore failures due to missing containers',
-    )
+    all: Annotated[
+        bool,
+        Field(description='Show all containers (default shows just running)')
+    ] = False
+
+    since: Annotated[
+        str | None,
+        Field(description='Show only containers created since Id or Name')
+    ] = None
+
+    before: Annotated[
+        str | None,
+        Field(description='Show only containers created before Id or Name')
+    ] = None
+
+    limit: Annotated[
+        int | None,
+        Field(description='Show limit last created containers')
+    ] = None
+
+    filters: Annotated[
+        ListContainersFilters | None,
+        Field(description='Filters to apply')
+    ] = None
+
+    sparse: Annotated[
+        bool,
+        Field(description='Do not inspect containers for full details')
+    ] = False
+
+    ignore_removed: Annotated[
+        bool,
+        Field(description='Ignore failures due to missing containers')
+    ] = False
+
+    def model_dump_docker_api(self) -> dict[str, Any]:
+        """Get parameters ready for Docker API client.containers.list().
+
+        Returns dict with non-None values and filters converted to Docker
+        format.
+        """
+        data = self.model_dump(exclude_none=True)
+
+        if 'filters' in data and self.filters is not None:
+            data['filters'] = self.filters.to_docker_filters()
+
+        return data
 
 
 class ListContainersResponse(BaseModel):

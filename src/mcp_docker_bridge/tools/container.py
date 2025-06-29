@@ -34,31 +34,8 @@ def list_containers(
     app_context: AppContext = ctx.request_context.lifespan_context
     docker_client = app_context.docker_client
 
-    if params is None:
-        params = ListContainersParams(
-            all=False,
-            since=None,
-            before=None,
-            limit=None,
-            filters=None,
-            sparse=False,
-            ignore_removed=False,
-        )
-
-    filters_dict = None
-    if params.filters is not None:
-        filters_dict = params.filters.to_docker_filters()
-
     try:
-        containers = docker_client.list_containers(
-            all=params.all,
-            since=params.since,
-            before=params.before,
-            limit=params.limit,
-            filters=filters_dict,
-            sparse=params.sparse,
-            ignore_removed=params.ignore_removed,
-        )
+        containers = docker_client.list_containers(params)
 
         return ListContainersResponse(
             containers=containers,

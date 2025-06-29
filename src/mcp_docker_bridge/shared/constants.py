@@ -8,6 +8,9 @@ class DockerContainerState(StrEnum):
     RUNNING = 'running'
     PAUSED = 'paused'
     EXITED = 'exited'
+    CREATED = 'created'
+    REMOVING = 'removing'
+    DEAD = 'dead'
 
 
 class DockerPortType(StrEnum):
@@ -64,15 +67,3 @@ class DockerContainerFilterKey(StrEnum):
     ANCESTOR = 'ancestor'
     BEFORE = 'before'
     SINCE = 'since'
-
-
-class DockerContainerListAPIParam(StrEnum):
-    """Docker API parameter names for containers.list().
-    """
-    ALL = 'all'
-    SINCE = 'since'
-    BEFORE = 'before'
-    LIMIT = 'limit'
-    FILTERS = 'filters'
-    SPARSE = 'sparse'
-    IGNORE_REMOVED = 'ignore_removed'

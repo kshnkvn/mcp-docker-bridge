@@ -5,7 +5,8 @@ from mcp_docker_bridge import mcp
 
 @mcp.prompt(title='List Docker Containers')
 def list_containers_guide() -> list[base.Message]:
-    """Guide for using the list_containers tool effectively."""
+    """Guide for using the list_containers tool effectively.
+    """
     return [
         base.UserMessage(
             'I need help understanding how to use the list_containers tool '
@@ -54,14 +55,16 @@ your system with essential information only.
 This tool provides a simplified view perfect for getting an overview. For
 detailed container inspection, use dedicated Docker inspection tools.
 
-What specific container information are you looking for?"""
+What specific container information are you looking for?
+"""
         ),
     ]
 
 
 @mcp.prompt(title='Filter Containers by Status')
 def filter_by_status(status: str = 'exited') -> str:
-    """Generate a prompt for filtering containers by status."""
+    """Generate a prompt for filtering containers by status.
+    """
     return f"""Please list all Docker containers with status '{status}'.
 
 Use the list_containers tool with status filtering to show containers
@@ -69,12 +72,14 @@ currently in the '{status}' state. This will help identify:
 - Container names and IDs
 - Current state
 - Complete lifecycle timing (created, started, finished)
-- Basic container information for further investigation"""
+- Basic container information for further investigation
+"""
 
 
 @mcp.prompt(title='Find Container by Name')
 def find_by_name(name_pattern: str = 'web') -> str:
-    """Generate a prompt to find containers by name pattern."""
+    """Generate a prompt to find containers by name pattern.
+    """
     return f"""Please find Docker containers with names containing
 '{name_pattern}'.
 
@@ -82,12 +87,14 @@ Use the list_containers tool with name filtering to locate containers
 matching this pattern. This is useful for:
 - Getting container IDs for further operations
 - Checking if specific containers exist
-- Verifying container naming conventions"""
+- Verifying container naming conventions
+"""
 
 
 @mcp.prompt(title='Container Overview')
 def container_overview() -> list[base.Message]:
-    """Generate a basic overview of container states."""
+    """Generate a basic overview of container states.
+    """
     return [
         base.UserMessage(
             'Can you give me an overview of my Docker containers?'
@@ -105,14 +112,16 @@ I can show you:
 
 This gives you a quick snapshot of your Docker environment with essential
 information. For detailed container inspection (logs, detailed config, etc.),
-you'll need to use other Docker tools."""
+you'll need to use other Docker tools.
+"""
         ),
     ]
 
 
 @mcp.prompt(title='Check Container Existence')
 def check_container_exists(container_name: str = 'my-app') -> str:
-    """Generate a prompt to check if a specific container exists."""
+    """Generate a prompt to check if a specific container exists.
+    """
     return f"""Please check if a container named '{container_name}' exists
 and show its current state.
 
@@ -122,12 +131,14 @@ Use the list_containers tool with name filtering to:
 - Get its container ID for potential further operations
 - See complete lifecycle timing (created, started, finished)
 
-If the container doesn't exist, the list will be empty."""
+If the container doesn't exist, the list will be empty.
+"""
 
 
 @mcp.prompt(title='Find Containers by Image')
 def find_by_image(image_name: str = 'nginx') -> str:
-    """Generate a prompt to find containers from a specific image."""
+    """Generate a prompt to find containers from a specific image.
+    """
     return f"""Please find all Docker containers created from the
 '{image_name}' image.
 
@@ -135,12 +146,14 @@ Use the list_containers tool with the ancestor filter to locate containers
 based on their source image. This helps with:
 - Inventory management of containers by image type
 - Finding all instances of a particular application
-- Getting container IDs and states for image-specific operations"""
+- Getting container IDs and states for image-specific operations
+"""
 
 
 @mcp.prompt(title='Recent Container Activity')
 def recent_activity() -> str:
-    """Generate a prompt to check recent container activity."""
+    """Generate a prompt to check recent container activity.
+    """
     return """Please show recent Docker container activity.
 
 Use the list_containers tool to get an overview of:
@@ -150,4 +163,5 @@ Use the list_containers tool to get an overview of:
   (created, started, finished)
 
 This provides insight into recent Docker activity on the system with
-essential container information."""
+essential container information.
+"""
