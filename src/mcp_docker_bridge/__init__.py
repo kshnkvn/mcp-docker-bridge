@@ -4,11 +4,18 @@ from contextlib import asynccontextmanager
 from mcp.server.fastmcp import FastMCP
 
 from mcp_docker_bridge.shared.context import AppContext
+from mcp_docker_bridge.shared.docker_client import DockerClientManager
 
 
 @asynccontextmanager
 async def lifespan(mcp: FastMCP) -> AsyncIterator[AppContext]:
-    yield AppContext()
+    docker_client = DockerClientManager()
+    docker_client.connect()
+
+    try:
+        yield AppContext(docker_client=docker_client)
+    finally:
+        docker_client.disconnect()
 
 
 def create_mcp() -> FastMCP:

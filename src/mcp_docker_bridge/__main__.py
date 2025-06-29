@@ -3,6 +3,15 @@ import sys
 from loguru import logger
 
 from mcp_docker_bridge import mcp
+from mcp_docker_bridge.prompts import (  # noqa: F401
+    check_container_exists,
+    container_overview,
+    filter_by_status,
+    find_by_image,
+    find_by_name,
+    list_containers_guide,
+    recent_activity,
+)
 from mcp_docker_bridge.tools import list_containers  # noqa: F401
 
 
