@@ -20,6 +20,7 @@ dependencies = [
 [tool.poetry.group.dev.dependencies]
 ruff = "^0.12.1"
 mypy = "^1.16.1"
+types-docker = "^7.1.0.20250523"
 
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]

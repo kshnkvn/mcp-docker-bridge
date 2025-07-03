@@ -165,3 +165,64 @@ Use the list_containers tool to get an overview of:
 This provides insight into recent Docker activity on the system with
 essential container information.
 """
+
+
+@mcp.prompt(title='Get Container Details')
+def get_container_details(container_id: str = 'my-container') -> str:
+    """Prompt to get detailed container information.
+    """
+    return f"""Please get detailed information about container: {container_id}
+
+Use the get_container tool to retrieve comprehensive container details
+including:
+- Configuration (image, command, environment variables)
+- Runtime state and health
+- Network configuration and port mappings
+- Volume mounts and storage
+- Resource limits and restart policies
+
+This information can be used to analyze the container or recreate it with
+the same configuration.
+"""
+
+
+@mcp.prompt(title='Analyze Container Configuration')
+def analyze_container_config(container_id: str = 'my-container') -> str:
+    """Prompt to analyze container configuration.
+    """
+    return f"""Please analyze the configuration of container: {container_id}
+
+1. First, use get_container to retrieve the container details
+2. Then analyze the configuration for:
+   - Security concerns (privileged mode, capabilities, user)
+   - Resource constraints (CPU, memory limits)
+   - Network exposure (published ports, network mode)
+   - Volume mounts (especially host mounts)
+   - Health check configuration
+   - Restart policy appropriateness
+
+Provide recommendations for improvements if any issues are found.
+"""
+
+
+@mcp.prompt(title='Container Recreation Parameters')
+def container_recreation_params(container_id: str = 'my-container') -> str:
+    """Prompt to get container recreation parameters.
+    """
+    return f"""Please provide the parameters needed to recreate container:
+{container_id}
+
+1. Use get_container to retrieve the current container configuration
+2. Extract and format the key parameters needed for docker run or docker
+   create:
+   - Image name and tag
+   - Command and entrypoint
+   - Environment variables
+   - Port mappings
+   - Volume mounts
+   - Network settings
+   - Resource limits
+   - Restart policy
+
+Format the output as a docker run command or docker-compose snippet.
+"""
